@@ -1,6 +1,7 @@
 package com.topbloc.codechallenge.db;
 
-import org.json.simple.JSONArray;
+import com.topbloc.codechallenge.InternalServerException;
+import  org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import java.io.File;
@@ -139,14 +140,377 @@ public class DatabaseManager {
     }
 
     // Controller functions - add your routes here. getItems is provided as an example
+
+    /**
+     * Retrieves all items by name and id, edited to also retrieve item stock and capacity
+     * @return JSONArray of all items
+     */
+    //retrieves all items by name and id, and edited to retrieve item stock and capacity
     public static JSONArray getItems() {
-        String sql = "SELECT * FROM items";
+        String sql = "SELECT items.name, items.id, inventory.stock, inventory.capacity " +
+                "FROM items, inventory " +
+                "ON items.id=inventory.item";
         try {
             ResultSet set = conn.createStatement().executeQuery(sql);
             return convertResultSetToJson(set);
         } catch (SQLException e) {
             System.out.println(e.getMessage());
             return null;
+        }
+    }
+
+    public static JSONArray getInventory() {
+        String sql = "SELECT * FROM inventory";
+        try {
+            ResultSet set = conn.createStatement().executeQuery(sql);
+            return convertResultSetToJson(set);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * @return all items currently out of stock
+     */
+    public static JSONArray getItemsOutOfStock() {
+        String sql = "SELECT items.name, items.id, inventory.stock, inventory.capacity " +
+                "FROM items, inventory " +
+                "ON items.id=inventory.item " +
+                "WHERE inventory.stock == 0";
+        try {
+            ResultSet set = conn.createStatement().executeQuery(sql);
+            return convertResultSetToJson(set);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     *
+     * @return all items currently overstocked
+     */
+    public static JSONArray getItemsOverstocked() {
+        String sql = "SELECT items.name, items.id, inventory.stock, inventory.capacity " +
+                "FROM items, inventory " +
+                "ON items.id=inventory.item " +
+                "WHERE inventory.stock > inventory.capacity";
+        try {
+            ResultSet set = conn.createStatement().executeQuery(sql);
+            return convertResultSetToJson(set);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * @return all items currently low on stock (<35% of capacity)
+     */
+    public static JSONArray getItemsLowOnStock() {
+        String sql = "SELECT items.name, items.id, inventory.stock, inventory.capacity " +
+                "FROM items, inventory " +
+                "ON items.id=inventory.item " +
+                "WHERE inventory.stock < .35 * inventory.capacity";
+        try {
+            ResultSet set = conn.createStatement().executeQuery(sql);
+            return convertResultSetToJson(set);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * @param id
+     * @return item details given an id
+     */
+    public static JSONArray getItem(int id) {
+        String sql = "SELECT items.name, items.id, inventory.stock, inventory.capacity " +
+                "FROM items, inventory " +
+                "ON items.id=inventory.item " +
+                "WHERE items.id == " + id;
+        try {
+            ResultSet set = conn.createStatement().executeQuery(sql);
+            return convertResultSetToJson(set);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    // test method to retrieve all items, including ones that are just added and not in inventory
+    public static JSONArray getItemsTest() {
+        String sql = "SELECT * " +
+                "FROM items";
+        try {
+            ResultSet set = conn.createStatement().executeQuery(sql);
+            return convertResultSetToJson(set);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+
+    /**
+     * @return all distributors including name and id
+     */
+    public static JSONArray getDistributors() {
+        String sql = "SELECT distributors.id, distributors.name " +
+                "FROM distributors";
+        try {
+            ResultSet set = conn.createStatement().executeQuery(sql);
+            return convertResultSetToJson(set);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    // test method to retrieve distributor prices table for testing
+    public static JSONArray getDistributorPrices() {
+        String sql = "SELECT * FROM distributor_prices";
+        try {
+            ResultSet set = conn.createStatement().executeQuery(sql);
+            return convertResultSetToJson(set);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     *
+     * @param id
+     * @return all items from a distributor given distributor's id
+     */
+    public static JSONArray getItemsFromDistributor(int id) {
+        String sql = "SELECT distributor_prices.distributor, distributor_prices.item, distributor_prices.cost, items.name " +
+                "FROM distributor_prices, items " +
+                "ON distributor_prices.item=items.id " +
+                "WHERE distributor_prices.distributor == " + id;
+        try {
+            ResultSet set = conn.createStatement().executeQuery(sql);
+            return convertResultSetToJson(set);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     *
+     * @param id
+     * @return all distributors of an item given item id
+     */
+    public static JSONArray getDistributorsFromItem(int id) {
+        String sql = "SELECT distributors.name, distributor_prices.distributor, distributor_prices.cost, distributor_prices.item " +
+                "FROM distributors, distributor_prices " +
+                "ON distributor_prices.distributor=distributors.id " +
+                "WHERE distributor_prices.item == " + id;
+        try {
+            ResultSet set = conn.createStatement().executeQuery(sql);
+            return convertResultSetToJson(set);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * adds item to database given id and name
+     * @param id
+     * @param name
+     */
+    public static void addItem(int id, String name) {
+
+        String sql = "INSERT INTO items(id, name) VALUES(?,?)";
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, id);
+            ps.setString(2, name);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+            throw new InternalServerException();
+        }
+    }
+
+    /**
+     * adds item to inventory in database given item id, stock, and capacity
+     * @param item
+     * @param stock
+     * @param capacity
+     */
+    public static void addItemToInventory(int item, int stock, int capacity) {
+
+        String sql = "INSERT INTO inventory (item, stock, capacity) VALUES(?,?,?)";
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, item);
+            ps.setInt(2, stock);
+            ps.setInt(3, capacity);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            throw new InternalServerException();
+        }
+    }
+
+    /**
+     * change the stock of an item given the item id and amount to change to
+     * @param item
+     * @param stock
+     */
+    public static void modifyItemStock(int item, int stock) {
+
+        String sql = "UPDATE inventory SET stock = ? WHERE item = ?";
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, stock);
+            ps.setInt(2, item);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            throw new InternalServerException();
+        }
+    }
+
+    /**
+     * change the capacity of an item given the item id and amount to change to
+     * @param item
+     * @param capacity
+     */
+    public static void modifyItemCapacity(int item, int capacity) {
+
+        String sql = "UPDATE inventory SET capacity = ? WHERE item = ?";
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, capacity);
+            ps.setInt(2, item);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            throw new InternalServerException();
+        }
+    }
+
+    /**
+     * add a distributor given distributor id and name
+     * @param id
+     * @param name
+     */
+    public static void addDistributor(int id, String name) {
+
+        String sql = "INSERT INTO distributors (id, name) VALUES(?,?)";
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, id);
+            ps.setString(2, name);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            throw new InternalServerException();
+        }
+    }
+
+    /**
+     * add item to a distributor's catalog given distributor id, item id, and item cost
+     * @param distributor
+     * @param item
+     * @param cost
+     */
+    public static void addItemToDistributor(int distributor, int item, double cost) {
+
+        String sql = "INSERT INTO distributor_prices (distributor, item, cost) VALUES(?,?,?) ";
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, distributor);
+            ps.setInt(2, item);
+            ps.setDouble(3, cost);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            throw new InternalServerException();
+        }
+    }
+
+    /**
+     * change the cost of a distributor's item given distributor id, item id, and amount to change cost to
+     * @param distributor
+     * @param item
+     * @param cost
+     */
+    public static void modifyDistributorPrice(int distributor, int item, double cost) {
+
+        String sql = "UPDATE distributor_prices SET cost = ? WHERE item = ? AND distributor = ?";
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setDouble(1, cost);
+            ps.setInt(2, item);
+            ps.setInt(3, distributor);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            throw new InternalServerException();
+        }
+    }
+
+    /**
+     * @param item
+     * @param quantity
+     * @return minimum cost of item from all distributor's given item id, quantity
+     */
+    public static JSONArray getMinCost(int item, int quantity) {
+        String sql =  "SELECT ((MIN(cost)) * " + quantity + ") FROM distributor_prices " +
+                "WHERE item == " + item;
+        try {
+            ResultSet set = conn.createStatement().executeQuery(sql);
+            return convertResultSetToJson(set);
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * removes an item from the inventory
+     * @param item
+     */
+    public static void removeItemFromInventory(int item) {
+        String sql = "DELETE FROM inventory WHERE item = ?";
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, item);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            throw new InternalServerException();
+        }
+    }
+
+    /**
+     * removes a distributor from the database
+     * @param id
+     */
+    public static void removeDistributor(int id) {
+        String sql = "DELETE FROM distributors WHERE id = ?";
+        String sql2 = "DELETE FROM distributor_prices WHERE distributor = ?";
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, id);
+            ps.executeUpdate();
+
+            // remove data for distributor from the prices table also since data is no longer needed
+            PreparedStatement ps2 = conn.prepareStatement(sql2);
+            ps2.setInt(1, id);
+            ps2.executeUpdate();
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            throw new InternalServerException();
         }
     }
 }
